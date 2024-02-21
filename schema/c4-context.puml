@@ -1,0 +1,16 @@
+@startuml c4_contexts
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+!define DEVICONS https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/master/devicons
+!define FONTAWESOME https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/master/font-awesome-5
+!include DEVICONS/angular.puml
+!include DEVICONS/java.puml
+!include DEVICONS/msql_server.puml
+!include FONTAWESOME/users.puml
+
+' LAYOUT_WITH_LEGEND()
+
+Person(user, "User", "Rest API", $sprite="users")
+System(sys, "Social Network", "My precious network")
+Rel(user, sys, "Uses", "https")
+@enduml

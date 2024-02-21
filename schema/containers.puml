@@ -1,0 +1,40 @@
+@startuml c4_contexts
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+!define DEVICONS2 https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/master/devicons
+!define ICONURL https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/v2.4.0
+!define FONTAWESOME https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/master/font-awesome-5
+!include DEVICONS2/postgresql.puml
+!include FONTAWESOME/users.puml
+!include DEVICONS2/go.puml
+!include DEVICONS2/react.puml
+!include ICONURL/devicons/database.puml
+!include <cloudinsight/kafka>
+
+LAYOUT_WITH_LEGEND()
+
+Person(user, "Client", "Client api", $sprite="users")
+Container(front, "Web api", "Web-interface", $sprite="react")
+Rel(user, front, "react")
+
+System_Boundary(c1, "Social network service", $link="https://github.com/plantuml-stdlib/C4-PlantUML") {
+    Container(main, "Main service", "angular", "Main interface for client API & authentification", $sprite="go")
+    Container(stats, "Statistics service", "angular", "Service for statistics collection & visualisation", $sprite="go")
+    Container(post_service, "Post service", "angular", "Service for posts, likes and comments", $sprite="go")
+    ContainerDb(main_db, "Main service db", "PostGres", "Holds user info", $sprite="postgresql")
+    ContainerDb(stats_db, "Statistics service db", "ClickHouse", "Holds metrics")
+    ContainerDb(post_db, "Post service db", "PostGres", "Holds user activity history", $sprite="postgresql")
+    ContainerQueue(kafka, "Msg brocker", "kafka", "", "kafka")
+}
+
+Rel(front, main, "ethernet")
+
+Rel(main, stats, "Uses", "grpc")
+Rel(main, post_service, "Uses", "grpc")
+Rel(main, main_db, "Reads/Writes")
+Rel(post_service, main, "Get post/comment info")
+Rel_L(stats, stats_db, "Reads/Writes")
+Rel_R(post_service, post_db, "Reads/Writes")
+Rel(post_service, kafka, "Publish")
+Rel(kafka, stats, "Subscribe")
+@enduml
