@@ -49,10 +49,10 @@ entity "Post stream" as posts {
 
 
 user ||--|| posts
-user }o--|| stats
+posts }o--|| stats
 posts ||--o{ post
 post ||--o{ comment
-
+comment }o--o{ comment
 
 
 @enduml
