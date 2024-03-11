@@ -1,0 +1,58 @@
+@startuml entity
+' hide the spot
+' hide circle
+
+' avoid problems with angled crows feet
+skinparam linetype ortho
+
+entity "User" as user {
+  * user_id : number <<generated>>
+  --
+  * name : text
+  * password : sha256
+  * token : auth token
+}
+
+entity "Post" as post {
+  * post_id : number <<generated>>
+  --
+  * author_id : number <<FK>>
+  * content : text
+  --
+  * child comment id : varchar
+  description : sha256
+}
+
+entity "Comment" as comment {
+  *author_id : number
+  --
+  * content : text
+  * like count : number
+  * comment count : number
+  --
+  * child comment id : varchar
+  description : sha256
+}
+
+entity "Statistics" as stats {
+  * online users : number
+  * likes : number
+  * posts : number
+  * views : number
+}
+
+
+entity "Post stream" as posts {
+  * author_id : number <<FK>>
+  * wall id : number <<generated>>
+}
+
+
+user ||--|| posts
+posts }o--|| stats
+posts ||--o{ post
+post ||--o{ comment
+comment }o--o{ comment
+
+
+@enduml
