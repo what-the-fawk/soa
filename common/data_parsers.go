@@ -25,6 +25,10 @@ func GetRSAKeys() (*rsa.PublicKey, *rsa.PrivateKey, error) {
 
 	pubFile, priFile := os.Getenv("RSA_PUB"), os.Getenv("RSA_PRI")
 
+	if len(pubFile) == 0 {
+		log.Fatal("Empty pub file")
+	}
+
 	pub, err := os.ReadFile(pubFile)
 
 	if err != nil {
@@ -42,6 +46,7 @@ func GetRSAKeys() (*rsa.PublicKey, *rsa.PrivateKey, error) {
 	pub_key, err := jwt.ParseRSAPublicKeyFromPEM(pub)
 
 	if err != nil {
+		log.Println("Error in pub parsing")
 		return nil, nil, err
 	}
 

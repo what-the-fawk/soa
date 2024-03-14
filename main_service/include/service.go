@@ -85,6 +85,7 @@ func CreateMainServiceHandler() *MainServiceHandler {
 	pub, pri, err := common.GetRSAKeys()
 
 	if err != nil {
+		log.Println("Rsa keys error")
 		log.Fatal(err.Error())
 	}
 

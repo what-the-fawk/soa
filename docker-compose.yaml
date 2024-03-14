@@ -2,7 +2,6 @@ version: "3.8"
 
 services:
   main_service:
-    image: golang:latest
     build:
       context: .
       dockerfile: ./main_service/Dockerfile
