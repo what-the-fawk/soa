@@ -6,4 +6,4 @@ WORKDIR /app/main_service
 
 RUN go build main.go
 
-ENTRYPOINT ./main ../.env
+ENTRYPOINT ./main

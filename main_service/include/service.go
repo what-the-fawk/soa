@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
@@ -121,7 +122,9 @@ func (s *MainServiceHandler) Register(w http.ResponseWriter, req *http.Request) 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	_, err = s.db.ExecContext(ctx, query, info.Login, info.Password, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber)
+	passwordHash := sha256.Sum256([]byte(info.Password))
+
+	_, err = s.db.ExecContext(ctx, query, info.Login, passwordHash, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -162,7 +165,9 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if info.Password != userQueryInfo.Password {
+	passwordHash := sha256.Sum256([]byte(info.Password))
+
+	if string(passwordHash[:]) != userQueryInfo.Password {
 		log.Println("Incorrect password")
 		http.Error(w, "Incorrect password", http.StatusNotFound)
 		return
