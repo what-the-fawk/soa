@@ -20,7 +20,7 @@ func main() {
 	http.HandleFunc("/auth", serv.Auth)
 	log.Println("Auth")
 
-	http.HandleFunc("/update", serv.Update)
+	http.HandleFunc("/users", serv.Update)
 	log.Println("Update")
 
 	err := http.ListenAndServe(":3333", nil)

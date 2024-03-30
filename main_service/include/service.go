@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
@@ -65,12 +66,12 @@ func CreateMainServiceHandler() *MainServiceHandler {
 		"CREATE TABLE IF NOT EXISTS Users " +
 		"(" +
 		"login VARCHAR (50) UNIQUE NOT NULL, " +
-		"password VARCHAR (40) NOT NULL, " +
-		"first_name VARCHAR (40) NOT NULL, " +
-		"second_name VARCHAR (40) NOT NULL, " +
-		"date_of_birth VARCHAR (50) NOT NULL, " +
-		"email VARCHAR (40) NOT NULL," +
-		"phone_number VARCHAR (40) NOT NULL" +
+		"password TEXT NOT NULL, " +
+		"first_name VARCHAR (40), " +
+		"second_name VARCHAR (40), " +
+		"date_of_birth VARCHAR (50), " +
+		"email VARCHAR (40), " +
+		"phone_number VARCHAR (40)" +
 		")"
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
@@ -107,7 +108,7 @@ func (s *MainServiceHandler) Register(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	info, status, err := common.GetJsonStruct[common.NewUserInfo](req)
+	info, status, err := common.GetJsonStruct[common.AuthInfo](req)
 
 	if err != nil {
 		log.Println("Json unmarshall error")
@@ -117,15 +118,16 @@ func (s *MainServiceHandler) Register(w http.ResponseWriter, req *http.Request) 
 
 	const query = "" +
 		"INSERT INTO Users " +
-		"(login, password, first_name, second_name, date_of_birth, email, phone_number) " +
-		"VALUES ($1, $2, $3, $4, $5, $6, $7)"
+		"(login, password) " +
+		"VALUES ($1, $2)"
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	passwordHash := sha256.Sum256([]byte(info.Password))
+	hasher := sha256.New()
+	passwordHash := hex.EncodeToString(hasher.Sum([]byte(info.Password)))
 
-	_, err = s.db.ExecContext(ctx, query, info.Login, passwordHash, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber)
+	_, err = s.db.ExecContext(ctx, query, info.Login, passwordHash)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -166,7 +168,8 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	passwordHash := sha256.Sum256([]byte(info.Password))
+	hasher := sha256.New()
+	passwordHash := hex.EncodeToString(hasher.Sum([]byte(info.Password)))
 
 	if string(passwordHash[:]) != userQueryInfo.Password {
 		log.Println("Incorrect password")
@@ -193,7 +196,7 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 
 func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 
-	if req.Method != http.MethodPatch {
+	if req.Method != http.MethodPut {
 		log.Println("Wrong method in Update")
 		http.Error(w, "Update is allowed only with POST method", http.StatusBadRequest)
 		return

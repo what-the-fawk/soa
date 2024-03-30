@@ -7,7 +7,7 @@ servers:
 
 paths:
   /register:
-    post:
+    put:
       summary: Register a new user
       requestBody:
         content:
