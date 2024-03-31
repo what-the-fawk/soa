@@ -139,7 +139,7 @@ func (s *PostService) GetPost(ctx context.Context, id *pb.PostID) (*pb.Post, err
 	return post, err
 }
 
-func (s *PostService) GetPosts(info *pb.PaginationInfo, server pb.PostService_GetPostsServer) error {
+func (s *PostService) GetPosts(ctx context.Context, info *pb.PaginationInfo) (*pb.PostList, error) {
 
 	const query = "SELECT post_id, content, author_id FROM Posts WHERE LIMIT $2 OFFSET $3"
 
@@ -158,7 +158,7 @@ func (s *PostService) GetPosts(info *pb.PaginationInfo, server pb.PostService_Ge
 		posts = append(posts, &pb.Post{Id: id, Content: content, AuthorId: auth_id})
 	}
 
-	return err
+	return &pb.PostList{Posts: posts}, err
 }
 
 func (s *PostService) mustEmbedUnimplementedPostServiceServer() {

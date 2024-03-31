@@ -30,12 +30,16 @@ message PaginationInfo {
   uint32 batch_size = 2;
 }
 
+message PostList {
+  repeated Post posts = 1;
+}
+
 service PostService  {
   rpc NewPost(PostInfo) returns (PostID) {};
   rpc UpdatePost(PostInfo) returns (google.protobuf.Empty) {};
   rpc DeletePost(PostID) returns (google.protobuf.Empty) {};
   rpc GetPost(PostID) returns (Post) {};
 
-  rpc GetPosts(PaginationInfo) returns (stream Post) {};
+  rpc GetPosts(PaginationInfo) returns (PostList) {};
 }
 

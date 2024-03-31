@@ -35,7 +35,7 @@ type PostServiceClient interface {
 	UpdatePost(ctx context.Context, in *PostInfo, opts ...grpc.CallOption) (*empty.Empty, error)
 	DeletePost(ctx context.Context, in *PostID, opts ...grpc.CallOption) (*empty.Empty, error)
 	GetPost(ctx context.Context, in *PostID, opts ...grpc.CallOption) (*Post, error)
-	GetPosts(ctx context.Context, in *PaginationInfo, opts ...grpc.CallOption) (PostService_GetPostsClient, error)
+	GetPosts(ctx context.Context, in *PaginationInfo, opts ...grpc.CallOption) (*PostList, error)
 }
 
 type postServiceClient struct {
@@ -82,36 +82,13 @@ func (c *postServiceClient) GetPost(ctx context.Context, in *PostID, opts ...grp
 	return out, nil
 }
 
-func (c *postServiceClient) GetPosts(ctx context.Context, in *PaginationInfo, opts ...grpc.CallOption) (PostService_GetPostsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &PostService_ServiceDesc.Streams[0], PostService_GetPosts_FullMethodName, opts...)
+func (c *postServiceClient) GetPosts(ctx context.Context, in *PaginationInfo, opts ...grpc.CallOption) (*PostList, error) {
+	out := new(PostList)
+	err := c.cc.Invoke(ctx, PostService_GetPosts_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &postServiceGetPostsClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type PostService_GetPostsClient interface {
-	Recv() (*Post, error)
-	grpc.ClientStream
-}
-
-type postServiceGetPostsClient struct {
-	grpc.ClientStream
-}
-
-func (x *postServiceGetPostsClient) Recv() (*Post, error) {
-	m := new(Post)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return out, nil
 }
 
 // PostServiceServer is the server API for PostService service.
@@ -122,7 +99,7 @@ type PostServiceServer interface {
 	UpdatePost(context.Context, *PostInfo) (*empty.Empty, error)
 	DeletePost(context.Context, *PostID) (*empty.Empty, error)
 	GetPost(context.Context, *PostID) (*Post, error)
-	GetPosts(*PaginationInfo, PostService_GetPostsServer) error
+	GetPosts(context.Context, *PaginationInfo) (*PostList, error)
 	mustEmbedUnimplementedPostServiceServer()
 }
 
@@ -142,8 +119,8 @@ func (UnimplementedPostServiceServer) DeletePost(context.Context, *PostID) (*emp
 func (UnimplementedPostServiceServer) GetPost(context.Context, *PostID) (*Post, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPost not implemented")
 }
-func (UnimplementedPostServiceServer) GetPosts(*PaginationInfo, PostService_GetPostsServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetPosts not implemented")
+func (UnimplementedPostServiceServer) GetPosts(context.Context, *PaginationInfo) (*PostList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPosts not implemented")
 }
 func (UnimplementedPostServiceServer) mustEmbedUnimplementedPostServiceServer() {}
 
@@ -230,25 +207,22 @@ func _PostService_GetPost_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PostService_GetPosts_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(PaginationInfo)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _PostService_GetPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PaginationInfo)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(PostServiceServer).GetPosts(m, &postServiceGetPostsServer{stream})
-}
-
-type PostService_GetPostsServer interface {
-	Send(*Post) error
-	grpc.ServerStream
-}
-
-type postServiceGetPostsServer struct {
-	grpc.ServerStream
-}
-
-func (x *postServiceGetPostsServer) Send(m *Post) error {
-	return x.ServerStream.SendMsg(m)
+	if interceptor == nil {
+		return srv.(PostServiceServer).GetPosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PostService_GetPosts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PostServiceServer).GetPosts(ctx, req.(*PaginationInfo))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 // PostService_ServiceDesc is the grpc.ServiceDesc for PostService service.
@@ -274,13 +248,11 @@ var PostService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetPost",
 			Handler:    _PostService_GetPost_Handler,
 		},
-	},
-	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "GetPosts",
-			Handler:       _PostService_GetPosts_Handler,
-			ServerStreams: true,
+			MethodName: "GetPosts",
+			Handler:    _PostService_GetPosts_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "post.proto",
 }
