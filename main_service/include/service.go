@@ -17,6 +17,7 @@ import (
 	"os"
 	"soa/common"
 	"soa/post_service/posts_service/pkg/pb"
+	"strings"
 	"time"
 )
 
@@ -287,12 +288,14 @@ func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	login_str := strings.Join(login, "")
+
 	const query = "UPDATE Users SET first_name=$1, second_name=$2, date_of_birth=$3, email=$4, phone_number=$5 WHERE login=$6"
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	_, err = s.db.ExecContext(ctx, query, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber, login)
+	_, err = s.db.ExecContext(ctx, query, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber, login_str)
 
 	if err != nil {
 		log.Println(err.Error())
