@@ -12,7 +12,28 @@ services:
     env_file:
       - .env
 
+  post_service:
+    build:
+      context: .
+      dockerfile: ./post_service/Dockerfile
+    depends_on:
+      - post_db
+    env_file:
+      - .env
+
+
   auth_db:
+    image: postgres
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGR_USR}
+      POSTGRES_PASSWORD: ${POSTGR_PASSWORD}
+
+      ## add healthcheck
+
+  post_db:
     image: postgres
     restart: always
     env_file:

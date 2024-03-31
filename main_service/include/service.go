@@ -6,12 +6,17 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"net/http"
+	"os"
 	"soa/common"
+	"soa/post_service/posts_service/pkg/pb"
 	"time"
 )
 
@@ -19,6 +24,7 @@ type MainServiceHandler struct {
 	db         *sql.DB
 	jwtPrivate *rsa.PrivateKey
 	jwtPublic  *rsa.PublicKey
+	client     pb.PostServiceClient
 }
 
 const dbname = "postgres"
@@ -90,10 +96,21 @@ func CreateMainServiceHandler() *MainServiceHandler {
 		log.Fatal(err.Error())
 	}
 
+	grpcServerAddr, ok := os.LookupEnv("GRPC_SERVER")
+	if !ok {
+		log.Fatalf("GRPC_SERVER not set")
+	}
+	conn, err := grpc.Dial(grpcServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect to gRPC server: %v", err)
+	}
+	grpcClient := pb.NewPostServiceClient(conn)
+
 	return &MainServiceHandler{
 		db:         db,
 		jwtPublic:  pub,
 		jwtPrivate: pri,
+		client:     grpcClient,
 	}
 }
 
@@ -194,6 +211,10 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+func (s *MainServiceHandler) CheckToken(req *http.Request) error {
+	return nil ////////////////////////////////////////////////////////////////
+}
+
 func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 
 	if req.Method != http.MethodPut {
@@ -277,5 +298,208 @@ func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+
+}
+
+func (s *MainServiceHandler) CreatePost(w http.ResponseWriter, req *http.Request) {
+
+	if req.Method != http.MethodPost {
+		if req.Method != http.MethodGet {
+			log.Println("Wrong method in CreatePost")
+			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+			return
+		}
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.PostInfo](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	id, err := s.client.NewPost(req.Context(), &pb.PostInfo{
+		AuthorId:         info.AuthorId,
+		DateOfCreation:   info.DateOfCreation,
+		Content:          info.Content,
+		CommentSectionId: info.CommentSectionId,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(id)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+}
+
+func (s *MainServiceHandler) UpdatePost(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		if req.Method != http.MethodGet {
+			log.Println("Wrong method in UpdatePost")
+			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+			return
+		}
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.PostInfo](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	_, err = s.client.UpdatePost(req.Context(), &pb.PostInfo{
+		AuthorId:         info.AuthorId,
+		DateOfCreation:   info.DateOfCreation,
+		Content:          info.Content,
+		CommentSectionId: info.CommentSectionId,
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+}
+
+func (s *MainServiceHandler) DeletePost(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		if req.Method != http.MethodGet {
+			log.Println("Wrong method in DeletePost")
+			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+			return
+		}
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.PostId](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	_, err = s.client.DeletePost(req.Context(), &pb.PostID{Id: info.Id})
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+}
+
+func (s *MainServiceHandler) GetPost(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		if req.Method != http.MethodGet {
+			log.Println("Wrong method in GetPost")
+			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+			return
+		}
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.PostId](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	res, err := s.client.GetPost(req.Context(), &pb.PostID{Id: info.Id})
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(res)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+}
+
+func (s *MainServiceHandler) GetPostList(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		if req.Method != http.MethodGet {
+			log.Println("Wrong method in GetPostList")
+			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+			return
+		}
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.PaginationInfo](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	res, err := s.client.GetPosts(req.Context(), &pb.PaginationInfo{
+		PageNumber: info.PageNumber,
+		BatchSize:  info.BatchSize,
+	})
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(res)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 
 }

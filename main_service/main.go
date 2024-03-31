@@ -23,6 +23,21 @@ func main() {
 	http.HandleFunc("/users", serv.Update)
 	log.Println("Update")
 
+	http.HandleFunc("/create", serv.CreatePost)
+	log.Println("Create")
+
+	http.HandleFunc("/update", serv.UpdatePost)
+	log.Println("Update post")
+
+	http.HandleFunc("/getPost", serv.GetPost)
+	log.Println("Get post")
+
+	http.HandleFunc("/delete", serv.DeletePost)
+	log.Println("Delete")
+
+	http.HandleFunc("/list", serv.GetPostList)
+	log.Println("Get post list")
+
 	err := http.ListenAndServe(":3333", nil)
 
 	if err != nil {
