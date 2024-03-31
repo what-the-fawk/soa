@@ -141,7 +141,7 @@ func (s *PostService) GetPost(ctx context.Context, id *pb.PostID) (*pb.Post, err
 
 func (s *PostService) GetPosts(ctx context.Context, info *pb.PaginationInfo) (*pb.PostList, error) {
 
-	const query = "SELECT post_id, content, author_id FROM Posts WHERE LIMIT $2 OFFSET $3"
+	const query = "SELECT post_id, content, author_id FROM Posts LIMIT $1 OFFSET $2"
 
 	rows, err := s.db.Query(query, info.BatchSize, info.PageNumber*uint64(info.BatchSize))
 
