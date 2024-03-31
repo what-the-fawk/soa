@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
@@ -213,6 +214,50 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *MainServiceHandler) CheckToken(req *http.Request) error {
+
+	cookie, err := req.Cookie("jwt")
+
+	if err != nil {
+		log.Println("No jwt?")
+		return errors.New("No jwt?")
+	}
+
+	tokenStr := cookie.Value
+
+	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (any, error) {
+		return s.jwtPublic, nil
+	})
+
+	if err != nil {
+		log.Println("No token")
+		return errors.New("No token")
+	}
+
+	date, err := token.Claims.GetExpirationTime()
+
+	if err != nil {
+		log.Println("No expiration date")
+		return errors.New("No expiration date")
+	}
+
+	if time.Now().Second() > date.Time.Second() {
+		log.Println("Expired token")
+		return errors.New("Expired token")
+	}
+
+	iss, err := token.Claims.GetIssuer()
+
+	if err != nil || iss != "MainService" {
+		return errors.New("Bad issuer")
+	}
+
+	_, err = token.Claims.GetAudience()
+
+	if err != nil {
+		log.Println("Invalid aud")
+		return errors.New("Invalid aud")
+	}
+
 	return nil ////////////////////////////////////////////////////////////////
 }
 
