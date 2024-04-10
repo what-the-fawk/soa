@@ -17,9 +17,10 @@ entity "Post" as post {
   * post_id : number <<generated>>
   --
   * author_id : number <<FK>>
+  * date_of_creation : text
   * content : text
   --
-  * child comment id : varchar
+  * comment_section_id : number<<FK>>
   description : sha256
 }
 
