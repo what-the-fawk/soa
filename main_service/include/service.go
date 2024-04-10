@@ -9,10 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
-	_ "github.com/lib/pq"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"net/http"
 	"os"
@@ -20,6 +16,11 @@ import (
 	"soa/post_service/posts_service/pkg/pb"
 	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type MainServiceHandler struct {
@@ -199,7 +200,7 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 	// token gen
 	claims := jwt.MapClaims{
 		"iss": "MainService",
-		"exp": 60 * time.Minute,
+		"exp": time.Duration(time.Now().UnixMicro()) + 60*time.Minute,
 		"aud": userQueryInfo.Login,
 	}
 
