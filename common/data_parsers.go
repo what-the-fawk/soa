@@ -60,7 +60,7 @@ func GetRSAKeys() (*rsa.PublicKey, *rsa.PrivateKey, error) {
 
 }
 
-func GetJsonStruct[T UserInfo | NewUserInfo | AuthInfo | PostInfo | PostId | PaginationInfo](req *http.Request) (*T, int, error) {
+func GetJsonStruct[T UserInfo | NewUserInfo | AuthInfo | PostInfo | PostId | PaginationInfo | ReactionInfo](req *http.Request) (*T, int, error) {
 
 	body := make([]byte, req.ContentLength)
 	read, err := req.Body.Read(body)

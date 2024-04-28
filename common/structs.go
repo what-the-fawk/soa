@@ -46,3 +46,8 @@ type PaginationInfo struct {
 	PageNumber uint64 `json:"pageNumber"`
 	BatchSize  uint32 `json:"batchSize"`
 }
+
+type ReactionInfo struct {
+	AuthorId uint64 `json:"authorId"`
+	PostId   uint64 `json:"postId"`
+}

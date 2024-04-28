@@ -21,7 +21,6 @@ services:
     env_file:
       - .env
 
-
   auth_db:
     image: postgres
     restart: always
@@ -41,3 +40,17 @@ services:
     environment:
       POSTGRES_USER: ${POSTGR_USR}
       POSTGRES_PASSWORD: ${POSTGR_PASSWORD}
+
+  brocker:
+    image: confluentinc/cp-kafka:latest
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    ports:
+      - 22181:2181
+

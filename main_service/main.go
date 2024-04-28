@@ -38,6 +38,12 @@ func main() {
 	http.HandleFunc("/list", serv.GetPostList)
 	log.Println("Get post list")
 
+	http.HandleFunc("/like", serv.SendLike)
+	log.Println("Send like")
+
+	http.HandleFunc("/view", serv.SendView)
+	log.Println("Send view")
+
 	err := http.ListenAndServe(":3333", nil)
 
 	if err != nil {

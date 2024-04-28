@@ -552,3 +552,56 @@ func (s *MainServiceHandler) GetPostList(w http.ResponseWriter, req *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 
 }
+
+func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) {
+
+	if req.Method != http.MethodPost {
+		http.Error(w, "Post method is the one allowed", http.StatusBadRequest)
+		log.Println("Wrong method in SendView")
+		return
+	}
+
+	err := s.CheckToken(req)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.ReactionInfo](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	// kafka
+
+}
+
+func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) {
+
+	if req.Method != http.MethodPost {
+		http.Error(w, "Post method is the one allowed", http.StatusBadRequest)
+		log.Println("Wrong method in SendLike")
+		return
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.ReactionInfo](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	// kafka
+
+}
