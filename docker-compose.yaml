@@ -18,6 +18,7 @@ services:
       dockerfile: ./post_service/Dockerfile
     depends_on:
       - post_db
+      - broker
     env_file:
       - .env
 
@@ -41,16 +42,56 @@ services:
       POSTGRES_USER: ${POSTGR_USR}
       POSTGRES_PASSWORD: ${POSTGR_PASSWORD}
 
-  brocker:
+  broker:
     image: confluentinc/cp-kafka:latest
     restart: always
     env_file:
       - .env
     depends_on:
       - zookeeper
+    hostname: kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONFLUENT_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+    healthcheck:
+      test: nc -z localhost 9092 || exit -1
+      start_period: 15s
+      interval: 5s
+      timeout: 10s
+      retries: 10
+  
+  stat_db:
+    image: yandex/clickhouse-server:latest
+    environment:
+      - CLICKHOUSE_USER=${STAT_DB_USERNAME}
+      - CLICKHOUSE_PASSWORD=${STAT_DB_PASSWORD}
+    ports:
+      - "8124:8123"
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     ports:
       - 22181:2181
+
+  stat_service:
+    build:
+      context: .
+      dockerfile: ./stat_service/Dockerfile
+    ports:
+      - 7584:4857
+    depends_on:
+      - broker
+      - stat_db
+    env_file:
+      - .env
+
 

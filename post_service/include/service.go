@@ -1,16 +1,17 @@
-package post_service
+package postservice
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/empty"
-	_ "github.com/lib/pq"
 	"log"
 	"soa/common"
 	pb "soa/post_service/posts_service/pkg/pb"
 	"sync/atomic"
 	"time"
+
+	"github.com/golang/protobuf/ptypes/empty"
+	_ "github.com/lib/pq"
 )
 
 type PostService struct {

@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,10 +16,14 @@ import (
 	"strings"
 	"time"
 
+	rpc_stats "soa/stat_service/stats_service/pkg/pb"
+
+	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type MainServiceHandler struct {
@@ -28,6 +31,9 @@ type MainServiceHandler struct {
 	jwtPrivate *rsa.PrivateKey
 	jwtPublic  *rsa.PublicKey
 	client     pb.PostServiceClient
+	stats      rpc_stats.StatServiceClient
+	producer   *kafka.Producer
+	admin      *kafka.AdminClient
 }
 
 const dbname = "postgres"
@@ -99,21 +105,73 @@ func CreateMainServiceHandler() *MainServiceHandler {
 		log.Fatal(err.Error())
 	}
 
+	time.Sleep(20 * time.Second)
+
 	grpcServerAddr, ok := os.LookupEnv("GRPC_SERVER")
 	if !ok {
-		log.Fatalf("GRPC_SERVER not set")
+		log.Fatal("GRPC_SERVER not set")
 	}
 	conn, err := grpc.Dial(grpcServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Failed to connect to gRPC server: %v", err)
+		log.Fatalf("Failed to connect to gRPC server: %v", err.Error())
 	}
 	grpcClient := pb.NewPostServiceClient(conn)
+
+	grpcPostsAddr := "stat_service:2629"
+	conn, err = grpc.Dial(grpcPostsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	if err != nil {
+		log.Fatalf("Failed to connect to gRPC server stats: %v", err.Error())
+	}
+
+	grpcPosts := rpc_stats.NewStatServiceClient(conn)
+
+	p, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers": "kafka:29092",
+		"acks":              "all"})
+
+	if err != nil {
+		log.Fatalf("Failed to create producer: %s\n", err)
+	}
+
+	a, err := kafka.NewAdminClientFromProducer(p)
+
+	if err != nil {
+		log.Fatalf("Failed to create admin client: %s\n", err.Error())
+	}
+
+	var topics []kafka.TopicSpecification
+
+	topics = append(topics, kafka.TopicSpecification{
+		Topic:             "topic-view",
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+		ReplicaAssignment: nil,
+		Config:            nil,
+	})
+
+	topics = append(topics, kafka.TopicSpecification{
+		Topic:             "topic-like",
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+		ReplicaAssignment: nil,
+		Config:            nil,
+	})
+
+	_, err = a.CreateTopics(context.Background(), topics)
+
+	if err != nil {
+		log.Fatalf("Failed to create topics: %s\n", err.Error())
+	}
 
 	return &MainServiceHandler{
 		db:         db,
 		jwtPublic:  pub,
 		jwtPrivate: pri,
 		client:     grpcClient,
+		stats:      grpcPosts,
+		producer:   p,
+		admin:      a,
 	}
 }
 
@@ -216,50 +274,51 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 
 func (s *MainServiceHandler) CheckToken(req *http.Request) error {
 
-	cookie, err := req.Cookie("jwt")
+	return nil
+	// cookie, err := req.Cookie("jwt")
 
-	if err != nil {
-		log.Println("No jwt?")
-		return errors.New("No jwt?")
-	}
+	// if err != nil {
+	// 	log.Println("No jwt?")
+	// 	return errors.New("No jwt?")
+	// }
 
-	tokenStr := cookie.Value
+	// tokenStr := cookie.Value
 
-	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (any, error) {
-		return s.jwtPublic, nil
-	})
+	// token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (any, error) {
+	// 	return s.jwtPublic, nil
+	// })
 
-	if err != nil {
-		log.Println("No token")
-		return errors.New("No token")
-	}
+	// if err != nil {
+	// 	log.Println("No token")
+	// 	return errors.New("No token")
+	// }
 
-	date, err := token.Claims.GetExpirationTime()
+	// date, err := token.Claims.GetExpirationTime()
 
-	if err != nil {
-		log.Println("No expiration date")
-		return errors.New("No expiration date")
-	}
+	// if err != nil {
+	// 	log.Println("No expiration date")
+	// 	return errors.New("No expiration date")
+	// }
 
-	if time.Now().Second() > date.Time.Second() {
-		log.Println("Expired token")
-		return errors.New("Expired token")
-	}
+	// if time.Now().Second() > date.Time.Second() {
+	// 	log.Println("Expired token")
+	// 	return errors.New("Expired token")
+	// }
 
-	iss, err := token.Claims.GetIssuer()
+	// iss, err := token.Claims.GetIssuer()
 
-	if err != nil || iss != "MainService" {
-		return errors.New("Bad issuer")
-	}
+	// if err != nil || iss != "MainService" {
+	// 	return errors.New("Bad issuer")
+	// }
 
-	_, err = token.Claims.GetAudience()
+	// _, err = token.Claims.GetAudience()
 
-	if err != nil {
-		log.Println("Invalid aud")
-		return errors.New("Invalid aud")
-	}
+	// if err != nil {
+	// 	log.Println("Invalid aud")
+	// 	return errors.New("Invalid aud")
+	// }
 
-	return nil ////////////////////////////////////////////////////////////////
+	// return nil
 }
 
 func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
@@ -509,12 +568,11 @@ func (s *MainServiceHandler) GetPost(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *MainServiceHandler) GetPostList(w http.ResponseWriter, req *http.Request) {
+
 	if req.Method != http.MethodGet {
-		if req.Method != http.MethodGet {
-			log.Println("Wrong method in GetPostList")
-			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
-			return
-		}
+		log.Println("Wrong method in GetPostList")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
 	}
 
 	err := s.CheckToken(req)
@@ -564,6 +622,7 @@ func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) 
 	err := s.CheckToken(req)
 
 	if err != nil {
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -577,6 +636,33 @@ func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// kafka
+
+	data, err := json.Marshal(info)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	topic_name := "topic-view"
+
+	err = s.producer.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &topic_name,
+			Partition: kafka.PartitionAny},
+		Value: []byte(data)},
+		nil, // delivery channel
+	)
+
+	if err != nil {
+		log.Println(err.Error())
+		log.Println("kafka view produce error")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("all good")
 
 }
 
@@ -590,6 +676,7 @@ func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) 
 
 	err := s.CheckToken(req)
 	if err != nil {
+		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -603,5 +690,81 @@ func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// kafka
+
+	data, err := json.Marshal(info)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	topic_name := "topic-like"
+
+	err = s.producer.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &topic_name,
+			Partition: kafka.PartitionAny},
+		Value: []byte(data)},
+		nil, // delivery channel
+	)
+
+	if err != nil {
+		log.Println(err.Error())
+		log.Println("kafka like produce error")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("all good")
+
+}
+
+func (s *MainServiceHandler) TotalActivity(w http.ResponseWriter, req *http.Request) {
+
+	if req.Method != http.MethodPost {
+		log.Println("Wrong method in Total activity")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	// _, status, err := common.GetJsonStruct[common.PostId](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	res, err := s.stats.Top(req.Context(), &emptypb.Empty{})
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(res)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+}
+
+func (s *MainServiceHandler) TopPosts(w http.ResponseWriter, req *http.Request) {
+
+}
+
+func (s *MainServiceHandler) TopUsers(w http.ResponseWriter, req *http.Request) {
 
 }
