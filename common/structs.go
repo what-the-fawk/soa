@@ -24,7 +24,7 @@ type AuthInfo struct {
 }
 
 type PostInfo struct {
-	AuthorId         uint64 `json:"authorId"`
+	Author           string `json:"author"`
 	DateOfCreation   string `json:"dateOfCreation"`
 	Content          string `json:"content"`
 	CommentSectionId uint64 `json:"commentSectionId"`
@@ -35,8 +35,8 @@ type PostId struct {
 }
 
 type Post struct {
-	PostId           uint64 `json:"PostIdId"`
-	AuthorId         uint64 `json:"authorId"`
+	PostId           uint64 `json:"PostId"`
+	Author           string `json:"author"`
 	DateOfCreation   string `json:"dateOfCreation"`
 	Content          string `json:"content"`
 	CommentSectionId uint64 `json:"commentSectionId"`
@@ -47,7 +47,11 @@ type PaginationInfo struct {
 	BatchSize  uint32 `json:"batchSize"`
 }
 
+type PostIsLike struct {
+	IsLike uint64 `json:"isLike"`
+}
+
 type ReactionInfo struct {
-	AuthorId uint64 `json:"authorId"`
-	PostId   uint64 `json:"postId"`
+	Author string `json:"author"`
+	PostId uint64 `json:"postId"`
 }

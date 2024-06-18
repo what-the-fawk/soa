@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -274,51 +275,55 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 
 func (s *MainServiceHandler) CheckToken(req *http.Request) error {
 
+	if req != nil {
+		return nil
+	}
+
+	// nolint:all
+	cookie, err := req.Cookie("jwt")
+
+	if err != nil {
+		log.Println("No jwt?")
+		return errors.New("No jwt?")
+	}
+
+	tokenStr := cookie.Value
+
+	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (any, error) {
+		return s.jwtPublic, nil
+	})
+
+	if err != nil {
+		log.Println("No token")
+		return errors.New("No token")
+	}
+
+	date, err := token.Claims.GetExpirationTime()
+
+	if err != nil {
+		log.Println("No expiration date")
+		return errors.New("No expiration date")
+	}
+
+	if time.Now().Second() > date.Time.Second() {
+		log.Println("Expired token")
+		return errors.New("Expired token")
+	}
+
+	iss, err := token.Claims.GetIssuer()
+
+	if err != nil || iss != "MainService" {
+		return errors.New("Bad issuer")
+	}
+
+	_, err = token.Claims.GetAudience()
+
+	if err != nil {
+		log.Println("Invalid aud")
+		return errors.New("Invalid aud")
+	}
+
 	return nil
-	// cookie, err := req.Cookie("jwt")
-
-	// if err != nil {
-	// 	log.Println("No jwt?")
-	// 	return errors.New("No jwt?")
-	// }
-
-	// tokenStr := cookie.Value
-
-	// token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (any, error) {
-	// 	return s.jwtPublic, nil
-	// })
-
-	// if err != nil {
-	// 	log.Println("No token")
-	// 	return errors.New("No token")
-	// }
-
-	// date, err := token.Claims.GetExpirationTime()
-
-	// if err != nil {
-	// 	log.Println("No expiration date")
-	// 	return errors.New("No expiration date")
-	// }
-
-	// if time.Now().Second() > date.Time.Second() {
-	// 	log.Println("Expired token")
-	// 	return errors.New("Expired token")
-	// }
-
-	// iss, err := token.Claims.GetIssuer()
-
-	// if err != nil || iss != "MainService" {
-	// 	return errors.New("Bad issuer")
-	// }
-
-	// _, err = token.Claims.GetAudience()
-
-	// if err != nil {
-	// 	log.Println("Invalid aud")
-	// 	return errors.New("Invalid aud")
-	// }
-
-	// return nil
 }
 
 func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
@@ -406,7 +411,6 @@ func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-
 }
 
 func (s *MainServiceHandler) CreatePost(w http.ResponseWriter, req *http.Request) {
@@ -434,7 +438,7 @@ func (s *MainServiceHandler) CreatePost(w http.ResponseWriter, req *http.Request
 	}
 
 	id, err := s.client.NewPost(req.Context(), &pb.PostInfo{
-		AuthorId:         info.AuthorId,
+		Author:           info.Author,
 		DateOfCreation:   info.DateOfCreation,
 		Content:          info.Content,
 		CommentSectionId: info.CommentSectionId,
@@ -453,7 +457,6 @@ func (s *MainServiceHandler) CreatePost(w http.ResponseWriter, req *http.Request
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-
 }
 
 func (s *MainServiceHandler) UpdatePost(w http.ResponseWriter, req *http.Request) {
@@ -480,7 +483,7 @@ func (s *MainServiceHandler) UpdatePost(w http.ResponseWriter, req *http.Request
 	}
 
 	_, err = s.client.UpdatePost(req.Context(), &pb.PostInfo{
-		AuthorId:         info.AuthorId,
+		Author:           info.Author,
 		DateOfCreation:   info.DateOfCreation,
 		Content:          info.Content,
 		CommentSectionId: info.CommentSectionId,
@@ -490,7 +493,6 @@ func (s *MainServiceHandler) UpdatePost(w http.ResponseWriter, req *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 }
 
 func (s *MainServiceHandler) DeletePost(w http.ResponseWriter, req *http.Request) {
@@ -564,7 +566,6 @@ func (s *MainServiceHandler) GetPost(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-
 }
 
 func (s *MainServiceHandler) GetPostList(w http.ResponseWriter, req *http.Request) {
@@ -608,7 +609,6 @@ func (s *MainServiceHandler) GetPostList(w http.ResponseWriter, req *http.Reques
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-
 }
 
 func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) {
@@ -663,7 +663,6 @@ func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) 
 	}
 
 	log.Println("all good")
-
 }
 
 func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) {
@@ -717,7 +716,6 @@ func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) 
 	}
 
 	log.Println("all good")
-
 }
 
 func (s *MainServiceHandler) TotalActivity(w http.ResponseWriter, req *http.Request) {
@@ -734,7 +732,7 @@ func (s *MainServiceHandler) TotalActivity(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	// _, status, err := common.GetJsonStruct[common.PostId](req)
+	info, status, err := common.GetJsonStruct[common.PostId](req)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -742,7 +740,9 @@ func (s *MainServiceHandler) TotalActivity(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	res, err := s.stats.Top(req.Context(), &emptypb.Empty{})
+	log.Println("Total activity id", info.Id)
+
+	res, err := s.stats.Total(req.Context(), &rpc_stats.PostID{Id: info.Id})
 
 	if err != nil {
 		log.Println(err.Error())
@@ -758,13 +758,90 @@ func (s *MainServiceHandler) TotalActivity(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-
 }
 
 func (s *MainServiceHandler) TopPosts(w http.ResponseWriter, req *http.Request) {
 
+	if req.Method != http.MethodPost {
+		log.Println("Wrong method in Top Posts")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
+	}
+
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	info, status, err := common.GetJsonStruct[common.PostIsLike](req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	res, err := s.stats.Top(context.Background(), &rpc_stats.TopInfo{IsLike: info.IsLike})
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// post authors
+
+	for _, activity := range res.Ids {
+
+		res, err := s.client.GetPost(req.Context(), &pb.PostID{Id: activity.Id})
+
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), status)
+			return
+		}
+
+		activity.AuthorLogin = res.Author
+	}
+
+	err = json.NewEncoder(w).Encode(res)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 }
 
 func (s *MainServiceHandler) TopUsers(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		log.Println("Wrong method in Top Users")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
+	}
 
+	err := s.CheckToken(req)
+	if err != nil {
+		http.Error(w, "No token?", http.StatusBadRequest)
+		return
+	}
+
+	res, err := s.stats.Rating(context.Background(), &emptypb.Empty{})
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(res)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 }

@@ -3,12 +3,15 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"soa/common"
 	statservice "soa/stat_service/include"
+	"soa/stat_service/stats_service/pkg/pb"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -18,8 +21,19 @@ func main() {
 	serv := statservice.CreateNewStatService()
 	http.HandleFunc("/", serv.OK)
 
+	newServ := grpc.NewServer()
+	pb.RegisterStatServiceServer(newServ, serv)
+
 	go http.ListenAndServe(":4857", nil)
 	log.Println("Stat service")
+
+	lis, err := net.Listen("tcp", ":2629")
+
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	go newServ.Serve(lis)
 
 	cond := true
 
@@ -43,14 +57,14 @@ func main() {
 				log.Fatal(err.Error())
 			}
 
-			_, err = ts.Exec("INSERT INTO views (author_id, post_id) VALUES (?, ?)", data.AuthorId, data.PostId)
-
-			ts.Commit()
+			_, err = ts.Exec("INSERT INTO views (user, post_id) VALUES (?, ?)", data.Author, data.PostId)
 
 			if err != nil {
 				log.Println("Failed to write view")
 				log.Println(err.Error())
 			}
+
+			ts.Commit()
 
 		case *kafka.Error:
 			log.Println(e)
@@ -79,14 +93,14 @@ func main() {
 				log.Fatal(err.Error())
 			}
 
-			_, err = ts.Exec("INSERT INTO likes (author_id, post_id) VALUES (?, ?)", data.AuthorId, data.PostId)
-
-			ts.Commit()
+			_, err = ts.Exec("INSERT INTO likes (user, post_id) VALUES (?, ?)", data.Author, data.PostId)
 
 			if err != nil {
 				log.Println("Failed to write view")
 				log.Println(err.Error())
 			}
+
+			ts.Commit()
 
 		case *kafka.Error:
 			log.Fatal(e)

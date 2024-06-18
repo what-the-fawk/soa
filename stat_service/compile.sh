@@ -1,6 +1,7 @@
-#!/usr/bin/env bash
-
- protoc --go_out=. --go-grpc_out=. stat.proto
+#!/usr/bin/bash
+export GOPATH=$HOME/go
+export PATH=$PATH:$GOPATH/bin
+protoc --go_out=. --go-grpc_out=. stat.proto
 
 
 # For python, uncomment all lines below:

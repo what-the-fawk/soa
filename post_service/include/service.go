@@ -67,7 +67,7 @@ func NewPostService() *PostService {
 		"CREATE TABLE IF NOT EXISTS Posts " +
 		"(" +
 		"post_id NUMERIC UNIQUE NOT NULL, " +
-		"author_id NUMERIC NOT NULL, " +
+		"author TEXT NOT NULL, " +
 		"date_of_creation VARCHAR (40) NOT NULL, " +
 		"content TEXT NOT NULL, " +
 		"comment_section_id NUMERIC NOT NULL" +
@@ -90,12 +90,12 @@ func NewPostService() *PostService {
 
 func (s *PostService) NewPost(ctx context.Context, post *pb.PostInfo) (*pb.PostID, error) {
 
-	const query = "INSERT INTO posts (post_id, author_id, date_of_creation, content, comment_section_id)" +
+	const query = "INSERT INTO posts (post_id, author, date_of_creation, content, comment_section_id)" +
 		" VALUES ($1, $2, $3, $4, $5) "
 
 	newId := atomic.AddUint64(&s.counter, 1)
 
-	_, err := s.db.Exec(query, newId, post.AuthorId, post.DateOfCreation, post.Content, post.CommentSectionId)
+	_, err := s.db.Exec(query, newId, post.Author, post.DateOfCreation, post.Content, post.CommentSectionId)
 
 	if err != nil {
 		return nil, err
@@ -107,9 +107,9 @@ func (s *PostService) NewPost(ctx context.Context, post *pb.PostInfo) (*pb.PostI
 
 func (s *PostService) UpdatePost(ctx context.Context, info *pb.PostInfo) (*empty.Empty, error) {
 
-	const query = "UPDATE Posts SET content=$1 WHERE author_id=$2 AND date_of_creation=$3 AND comment_section_id=$4 "
+	const query = "UPDATE Posts SET content=$1 WHERE author=$2 AND date_of_creation=$3 AND comment_section_id=$4 "
 
-	_, err := s.db.Exec(query, info.Content, info.AuthorId, info.DateOfCreation, info.CommentSectionId)
+	_, err := s.db.Exec(query, info.Content, info.Author, info.DateOfCreation, info.CommentSectionId)
 
 	return &empty.Empty{}, err
 }
@@ -125,13 +125,13 @@ func (s *PostService) DeletePost(ctx context.Context, id *pb.PostID) (*empty.Emp
 
 func (s *PostService) GetPost(ctx context.Context, id *pb.PostID) (*pb.Post, error) {
 
-	const query = "SELECT post_id, author_id, date_of_creation, content, comment_section_id from Posts WHERE post_id=$1"
+	const query = "SELECT post_id, author, date_of_creation, content, comment_section_id from Posts WHERE post_id=$1"
 
 	row := s.db.QueryRow(query, id.Id)
 
 	post := &pb.Post{}
 
-	err := row.Scan(&post.Id, &post.AuthorId, &post.DateOfCreation, &post.Content, &post.CommentSectionId)
+	err := row.Scan(&post.Id, &post.Author, &post.DateOfCreation, &post.Content, &post.CommentSectionId)
 
 	if err != nil {
 		log.Println("Row scan error", err.Error())
@@ -142,7 +142,7 @@ func (s *PostService) GetPost(ctx context.Context, id *pb.PostID) (*pb.Post, err
 
 func (s *PostService) GetPosts(ctx context.Context, info *pb.PaginationInfo) (*pb.PostList, error) {
 
-	const query = "SELECT post_id, content, author_id FROM Posts LIMIT $1 OFFSET $2"
+	const query = "SELECT post_id, content, author FROM Posts LIMIT $1 OFFSET $2"
 
 	rows, err := s.db.Query(query, info.BatchSize, info.PageNumber*uint64(info.BatchSize))
 
@@ -150,13 +150,14 @@ func (s *PostService) GetPosts(ctx context.Context, info *pb.PaginationInfo) (*p
 
 	var posts []*pb.Post
 	for rows.Next() {
-		var id, auth_id uint64
+		var id uint64
+		var auth_id string
 		var content string
 		err := rows.Scan(&id, &content, &auth_id)
 		if err != nil {
 			return nil, err
 		}
-		posts = append(posts, &pb.Post{Id: id, Content: content, AuthorId: auth_id})
+		posts = append(posts, &pb.Post{Id: id, Content: content, Author: auth_id})
 	}
 
 	return &pb.PostList{Posts: posts}, err

@@ -1,21 +1,24 @@
 package statservice
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"soa/stat_service/stats_service/pkg/pb"
 	"time"
 
 	"database/sql"
 
 	_ "github.com/ClickHouse/clickhouse-go"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 type StatServiceHandler struct {
-	// db
+	pb.UnimplementedStatServiceServer
 	Consumer_views *kafka.Consumer
 	Consumer_likes *kafka.Consumer
 	Click          *sql.DB
@@ -71,7 +74,7 @@ func CreateNewStatService() *StatServiceHandler {
 
 	// create views
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS views (author_id UInt64, post_id UInt64) ENGINE = Memory")
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS views (user String, post_id UInt64) ENGINE = MergeTree() ORDER BY post_id") // TODO: change engines
 
 	if err != nil {
 		log.Println("Failed to create views")
@@ -80,7 +83,7 @@ func CreateNewStatService() *StatServiceHandler {
 
 	// create likes
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS likes (author_id UInt64, post_id UInt64) ENGINE = Memory")
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS likes (user String, post_id UInt64) ENGINE = MergeTree() ORDER BY post_id")
 
 	if err != nil {
 		log.Println("Failed to create likes")
@@ -102,4 +105,143 @@ func (s *StatServiceHandler) OK(w http.ResponseWriter, req *http.Request) {
 	}
 	log.Println("GET OK")
 	// returns OK
+}
+
+func (s *StatServiceHandler) Top(ctx context.Context, info *pb.TopInfo) (*pb.Posts, error) {
+
+	// go to db
+	log.Println("Top")
+
+	ts, err := s.Click.Begin()
+
+	if err != nil {
+		log.Println("Clickhouse Begin issues")
+		return nil, err
+	}
+
+	var table string
+
+	if info.IsLike != 0 {
+		table = "likes"
+	} else {
+		table = "views"
+	}
+
+	query := "SELECT post_id, COUNT(post_id) AS `value_occurence` FROM " + table + " GROUP BY post_id ORDER BY `value_occurence` DESC LIMIT 5"
+
+	rows, err := ts.Query(query)
+
+	if err != nil {
+		return nil, err
+	}
+
+	ans := &pb.Posts{}
+
+	for rows.Next() {
+		var post pb.PostInfo
+
+		post.AuthorLogin = "unknown"
+
+		err = rows.Scan(&post.Id, &post.ActivityNum)
+
+		if err != nil {
+			return nil, err
+		}
+
+		ans.Ids = append(ans.Ids, &post)
+	}
+
+	ts.Commit()
+
+	return ans, nil
+}
+
+func (s *StatServiceHandler) Rating(ctx context.Context, arg *emptypb.Empty) (*pb.Users, error) {
+
+	// go to db
+	log.Println("Rating")
+
+	ts, err := s.Click.Begin()
+
+	if err != nil {
+		log.Println("Clickhouse Begin issues")
+		return nil, err
+	}
+
+	query := "SELECT user, COUNT(user) AS `value_occurence` FROM likes GROUP BY user ORDER BY `value_occurence` DESC LIMIT 3"
+
+	rows, err := ts.Query(query)
+
+	if err != nil {
+		return nil, err
+	}
+
+	ans := &pb.Users{}
+
+	for rows.Next() {
+		var info pb.UserLike
+
+		err = rows.Scan(&info.Login, &info.Likes)
+
+		log.Println("User: ", info.Likes, info.Login)
+
+		if err != nil {
+			return nil, err
+		}
+
+		ans.Users = append(ans.Users, &info)
+	}
+
+	ts.Commit()
+
+	return ans, nil
+}
+
+func (s *StatServiceHandler) Total(ctx context.Context, id *pb.PostID) (*pb.LikesViews, error) {
+
+	// go to db
+	log.Println("Total")
+	log.Println(id.Id)
+
+	ts, err := s.Click.Begin()
+	ans := &pb.LikesViews{}
+
+	if err != nil {
+		log.Println("Clickhouse Begin issues")
+		return nil, err
+	}
+
+	query_likes := "SELECT COUNT(DISTINCT user) as count FROM likes WHERE post_id = ?"
+
+	row := ts.QueryRow(query_likes, int64(id.Id))
+
+	if row.Err() != nil {
+		log.Fatal(row.Err().Error())
+		return nil, row.Err()
+	}
+
+	log.Println("LikesViews")
+
+	err = row.Scan(&ans.Likes)
+	if err != nil {
+		log.Println(err.Error())
+		return nil, err
+	}
+
+	query_views := "SELECT COUNT(DISTINCT user) as count FROM views WHERE post_id = ?"
+
+	row = ts.QueryRow(query_views, int64(id.Id))
+
+	if row.Err() != nil {
+		log.Fatal(row.Err().Error())
+		return nil, row.Err()
+	}
+
+	err = row.Scan(&ans.Views)
+	if err != nil {
+		log.Println(err.Error())
+		return nil, err
+	}
+
+	return ans, nil
 }

@@ -44,6 +44,15 @@ func main() {
 	http.HandleFunc("/view", serv.SendView)
 	log.Println("Send view")
 
+	http.HandleFunc("/topP", serv.TopPosts)
+	log.Println("Top posts")
+
+	http.HandleFunc("/total", serv.TotalActivity)
+	log.Println("Total Activity")
+
+	http.HandleFunc("/topU", serv.TopUsers)
+	log.Println("Top users")
+
 	err := http.ListenAndServe(":3333", nil)
 
 	if err != nil {
