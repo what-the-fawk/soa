@@ -14,7 +14,6 @@ import (
 	"os"
 	"soa/common"
 	"soa/post_service/posts_service/pkg/pb"
-	"strings"
 	"time"
 
 	rpc_stats "soa/stat_service/stats_service/pkg/pb"
@@ -118,7 +117,7 @@ func CreateMainServiceHandler() *MainServiceHandler {
 	}
 	grpcClient := pb.NewPostServiceClient(conn)
 
-	grpcPostsAddr := "stat_service:2629"
+	grpcPostsAddr := "stat_service:9699"
 	conn, err = grpc.Dial(grpcPostsAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	if err != nil {
@@ -216,7 +215,7 @@ func (s *MainServiceHandler) Register(w http.ResponseWriter, req *http.Request) 
 
 func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 
-	if req.Method != http.MethodGet {
+	if req.Method != http.MethodPost {
 		log.Println("Wrong method in Auth")
 		http.Error(w, "Authentication is allowed only with GET method", http.StatusBadRequest)
 		return
@@ -258,9 +257,8 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 
 	// token gen
 	claims := jwt.MapClaims{
-		"iss": "MainService",
-		"exp": time.Duration(time.Now().UnixMicro()) + 60*time.Minute,
-		"aud": userQueryInfo.Login,
+		"iss": info.Login,
+		"exp": time.Duration(time.Now().Second()) + time.Duration(1800*time.Second),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -273,18 +271,15 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func (s *MainServiceHandler) CheckToken(req *http.Request) error {
-
-	if req != nil {
-		return nil
-	}
+// check token validity, returns jwt issuer and error
+func (s *MainServiceHandler) CheckToken(req *http.Request) (string, error) {
 
 	// nolint:all
 	cookie, err := req.Cookie("jwt")
 
 	if err != nil {
 		log.Println("No jwt?")
-		return errors.New("No jwt?")
+		return "", errors.New("No jwt?")
 	}
 
 	tokenStr := cookie.Value
@@ -295,42 +290,43 @@ func (s *MainServiceHandler) CheckToken(req *http.Request) error {
 
 	if err != nil {
 		log.Println("No token")
-		return errors.New("No token")
+		return "", errors.New("No token")
 	}
 
 	date, err := token.Claims.GetExpirationTime()
 
 	if err != nil {
 		log.Println("No expiration date")
-		return errors.New("No expiration date")
+		return "", errors.New("No expiration date")
 	}
 
-	if time.Now().Second() > date.Time.Second() {
+	if date.Time.Before(time.Now()) {
 		log.Println("Expired token")
-		return errors.New("Expired token")
+		return "", errors.New("Expired token")
 	}
 
 	iss, err := token.Claims.GetIssuer()
 
-	if err != nil || iss != "MainService" {
-		return errors.New("Bad issuer")
-	}
-
-	_, err = token.Claims.GetAudience()
-
 	if err != nil {
-		log.Println("Invalid aud")
-		return errors.New("Invalid aud")
+		return "", errors.New("Bad issuer")
 	}
 
-	return nil
+	return iss, nil
 }
 
 func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 
-	if req.Method != http.MethodPut {
+	if req.Method != http.MethodPost {
 		log.Println("Wrong method in Update")
 		http.Error(w, "Update is allowed only with POST method", http.StatusBadRequest)
+		return
+	}
+
+	user, err := s.CheckToken(req)
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -342,70 +338,12 @@ func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// check token
-
-	cookie, err := req.Cookie("jwt")
-
-	if err != nil {
-		log.Println("No jwt?")
-		http.Error(w, "Not authorized", http.StatusUnauthorized)
-		return
-	}
-
-	tokenStr := cookie.Value
-
-	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (any, error) {
-		return s.jwtPublic, nil
-	})
-
-	if err != nil {
-		log.Println("No token")
-		http.Error(w, "Invalid auth", http.StatusBadRequest)
-		return
-	}
-
-	date, err := token.Claims.GetExpirationTime()
-
-	if err != nil {
-		log.Println("No expiration date")
-		http.Error(w, "Invalid token", http.StatusBadRequest)
-		return
-	}
-
-	if time.Now().Second() > date.Time.Second() {
-		log.Println("Expired token")
-		http.Error(w, "Expired token", http.StatusUnauthorized)
-	}
-
-	if !token.Valid {
-		log.Println("Invalid token")
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-		return
-	}
-
-	iss, err := token.Claims.GetIssuer()
-
-	if err != nil || iss != "MainService" {
-		http.Error(w, "Invalid auth", http.StatusBadRequest)
-		return
-	}
-
-	login, err := token.Claims.GetAudience()
-
-	if err != nil {
-		log.Println("Invalid aud")
-		http.Error(w, "Invalid auth", http.StatusBadRequest)
-		return
-	}
-
-	login_str := strings.Join(login, "")
-
 	const query = "UPDATE Users SET first_name=$1, second_name=$2, date_of_birth=$3, email=$4, phone_number=$5 WHERE login=$6"
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	_, err = s.db.ExecContext(ctx, query, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber, login_str)
+	_, err = s.db.ExecContext(ctx, query, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber, user)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -416,16 +354,14 @@ func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 func (s *MainServiceHandler) CreatePost(w http.ResponseWriter, req *http.Request) {
 
 	if req.Method != http.MethodPost {
-		if req.Method != http.MethodGet {
-			log.Println("Wrong method in CreatePost")
-			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
-			return
-		}
+		log.Println("Wrong method in CreatePost")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
 	}
 
-	err := s.CheckToken(req)
+	user, err := s.CheckToken(req)
 	if err != nil {
-		http.Error(w, "No token?", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -438,7 +374,7 @@ func (s *MainServiceHandler) CreatePost(w http.ResponseWriter, req *http.Request
 	}
 
 	id, err := s.client.NewPost(req.Context(), &pb.PostInfo{
-		Author:           info.Author,
+		Author:           user,
 		DateOfCreation:   info.DateOfCreation,
 		Content:          info.Content,
 		CommentSectionId: info.CommentSectionId,
@@ -461,16 +397,14 @@ func (s *MainServiceHandler) CreatePost(w http.ResponseWriter, req *http.Request
 
 func (s *MainServiceHandler) UpdatePost(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		if req.Method != http.MethodGet {
-			log.Println("Wrong method in UpdatePost")
-			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
-			return
-		}
+		log.Println("Wrong method in UpdatePost")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
 	}
 
-	err := s.CheckToken(req)
+	user, err := s.CheckToken(req)
 	if err != nil {
-		http.Error(w, "No token?", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -483,7 +417,7 @@ func (s *MainServiceHandler) UpdatePost(w http.ResponseWriter, req *http.Request
 	}
 
 	_, err = s.client.UpdatePost(req.Context(), &pb.PostInfo{
-		Author:           info.Author,
+		Author:           user,
 		DateOfCreation:   info.DateOfCreation,
 		Content:          info.Content,
 		CommentSectionId: info.CommentSectionId,
@@ -497,14 +431,12 @@ func (s *MainServiceHandler) UpdatePost(w http.ResponseWriter, req *http.Request
 
 func (s *MainServiceHandler) DeletePost(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		if req.Method != http.MethodGet {
-			log.Println("Wrong method in DeletePost")
-			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
-			return
-		}
+		log.Println("Wrong method in DeletePost")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
 	}
 
-	err := s.CheckToken(req)
+	user, err := s.CheckToken(req)
 	if err != nil {
 		http.Error(w, "No token?", http.StatusBadRequest)
 		return
@@ -518,7 +450,7 @@ func (s *MainServiceHandler) DeletePost(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	_, err = s.client.DeletePost(req.Context(), &pb.PostID{Id: info.Id})
+	_, err = s.client.DeletePost(req.Context(), &pb.PostIdAuthor{Id: info.Id, Author: user})
 
 	if err != nil {
 		log.Println(err.Error())
@@ -529,14 +461,12 @@ func (s *MainServiceHandler) DeletePost(w http.ResponseWriter, req *http.Request
 
 func (s *MainServiceHandler) GetPost(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		if req.Method != http.MethodGet {
-			log.Println("Wrong method in GetPost")
-			http.Error(w, "Post method is one allowed", http.StatusBadRequest)
-			return
-		}
+		log.Println("Wrong method in GetPost")
+		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
+		return
 	}
 
-	err := s.CheckToken(req)
+	_, err := s.CheckToken(req)
 	if err != nil {
 		http.Error(w, "No token?", http.StatusBadRequest)
 		return
@@ -570,13 +500,13 @@ func (s *MainServiceHandler) GetPost(w http.ResponseWriter, req *http.Request) {
 
 func (s *MainServiceHandler) GetPostList(w http.ResponseWriter, req *http.Request) {
 
-	if req.Method != http.MethodGet {
+	if req.Method != http.MethodPost {
 		log.Println("Wrong method in GetPostList")
 		http.Error(w, "Post method is one allowed", http.StatusBadRequest)
 		return
 	}
 
-	err := s.CheckToken(req)
+	_, err := s.CheckToken(req)
 	if err != nil {
 		http.Error(w, "No token?", http.StatusBadRequest)
 		return
@@ -619,7 +549,7 @@ func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	err := s.CheckToken(req)
+	user, err := s.CheckToken(req)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -635,9 +565,21 @@ func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	_, err = s.client.GetPost(req.Context(), &pb.PostID{Id: info.PostId})
+
+	if err != nil {
+		log.Println(err.Error())
+		http.Error(w, err.Error(), status)
+		return
+	}
+
 	// kafka
 
-	data, err := json.Marshal(info)
+	data, err := json.Marshal(&common.Reaction{
+		User:   user,
+		Author: "unused",
+		PostId: info.PostId,
+	})
 
 	if err != nil {
 		log.Println(err.Error())
@@ -661,8 +603,6 @@ func (s *MainServiceHandler) SendView(w http.ResponseWriter, req *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	log.Println("all good")
 }
 
 func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) {
@@ -673,7 +613,7 @@ func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	err := s.CheckToken(req)
+	user, err := s.CheckToken(req)
 	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -688,9 +628,21 @@ func (s *MainServiceHandler) SendLike(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	// get post Author from PostService
+	post, err := s.client.GetPost(context.Background(), &pb.PostID{Id: info.PostId})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// kafka
 
-	data, err := json.Marshal(info)
+	data, err := json.Marshal(&common.Reaction{
+		User:   user,
+		Author: post.Author,
+		PostId: info.PostId,
+	})
 
 	if err != nil {
 		log.Println(err.Error())
@@ -726,7 +678,7 @@ func (s *MainServiceHandler) TotalActivity(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	err := s.CheckToken(req)
+	_, err := s.CheckToken(req)
 	if err != nil {
 		http.Error(w, "No token?", http.StatusBadRequest)
 		return
@@ -768,7 +720,7 @@ func (s *MainServiceHandler) TopPosts(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	err := s.CheckToken(req)
+	_, err := s.CheckToken(req)
 	if err != nil {
 		http.Error(w, "No token?", http.StatusBadRequest)
 		return
@@ -822,9 +774,9 @@ func (s *MainServiceHandler) TopUsers(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	err := s.CheckToken(req)
+	_, err := s.CheckToken(req)
 	if err != nil {
-		http.Error(w, "No token?", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

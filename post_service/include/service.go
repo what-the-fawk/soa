@@ -114,11 +114,11 @@ func (s *PostService) UpdatePost(ctx context.Context, info *pb.PostInfo) (*empty
 	return &empty.Empty{}, err
 }
 
-func (s *PostService) DeletePost(ctx context.Context, id *pb.PostID) (*empty.Empty, error) {
+func (s *PostService) DeletePost(ctx context.Context, id *pb.PostIdAuthor) (*empty.Empty, error) {
 
-	const query = "DELETE FROM Posts WHERE post_id=$1 "
+	const query = "DELETE FROM Posts WHERE post_id=$1 AND author=$2 "
 
-	_, err := s.db.Exec(query, id.Id)
+	_, err := s.db.Exec(query, id.Id, id.Author)
 
 	return &empty.Empty{}, err
 }

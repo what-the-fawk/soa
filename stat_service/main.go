@@ -27,7 +27,7 @@ func main() {
 	go http.ListenAndServe(":4857", nil)
 	log.Println("Stat service")
 
-	lis, err := net.Listen("tcp", ":2629")
+	lis, err := net.Listen("tcp", ":9699")
 
 	if err != nil {
 		log.Fatal(err.Error())
@@ -35,7 +35,15 @@ func main() {
 
 	go newServ.Serve(lis)
 
+	go func() {
+		if err := newServ.Serve(lis); err != nil {
+			log.Fatal(err.Error())
+		}
+	}()
+
 	cond := true
+
+	log.Println("Kafka listening")
 
 	for cond { // nolint:all
 
@@ -48,7 +56,7 @@ func main() {
 			log.Println(ev)
 
 			// extract data
-			var data common.ReactionInfo
+			var data common.Reaction
 			json.Unmarshal(e.Value, &data)
 			// write to db
 			ts, err := serv.Click.Begin()
@@ -72,7 +80,6 @@ func main() {
 			// cond = true
 
 		default:
-			log.Println("no message for views")
 		}
 
 		ev = serv.Consumer_likes.Poll(1000)
@@ -84,7 +91,7 @@ func main() {
 			log.Println(ev)
 
 			// extract data
-			var data common.ReactionInfo
+			var data common.Reaction
 			json.Unmarshal(e.Value, &data)
 			// write to db
 			ts, err := serv.Click.Begin()
@@ -93,7 +100,7 @@ func main() {
 				log.Fatal(err.Error())
 			}
 
-			_, err = ts.Exec("INSERT INTO likes (user, post_id) VALUES (?, ?)", data.Author, data.PostId)
+			_, err = ts.Exec("INSERT INTO likes (user, post_id, author) VALUES (?, ?, ?)", data.Author, data.PostId, data.Author)
 
 			if err != nil {
 				log.Println("Failed to write view")
@@ -108,7 +115,6 @@ func main() {
 			// cond = true
 
 		default:
-			log.Println("no message for likes")
 		}
 
 	}

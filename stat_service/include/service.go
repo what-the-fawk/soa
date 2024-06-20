@@ -83,7 +83,7 @@ func CreateNewStatService() *StatServiceHandler {
 
 	// create likes
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS likes (user String, post_id UInt64) ENGINE = MergeTree() ORDER BY post_id")
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS likes (user String, post_id UInt64, author String) ENGINE = MergeTree() ORDER BY post_id")
 
 	if err != nil {
 		log.Println("Failed to create likes")
@@ -168,7 +168,7 @@ func (s *StatServiceHandler) Rating(ctx context.Context, arg *emptypb.Empty) (*p
 		return nil, err
 	}
 
-	query := "SELECT user, COUNT(user) AS `value_occurence` FROM likes GROUP BY user ORDER BY `value_occurence` DESC LIMIT 3"
+	query := "SELECT author, COUNT(author) AS `value_occurence` FROM likes GROUP BY author ORDER BY `value_occurence` DESC LIMIT 3"
 
 	rows, err := ts.Query(query)
 
@@ -216,7 +216,7 @@ func (s *StatServiceHandler) Total(ctx context.Context, id *pb.PostID) (*pb.Like
 	row := ts.QueryRow(query_likes, int64(id.Id))
 
 	if row.Err() != nil {
-		log.Fatal(row.Err().Error())
+		log.Println(row.Err().Error())
 		return nil, row.Err()
 	}
 
@@ -233,7 +233,7 @@ func (s *StatServiceHandler) Total(ctx context.Context, id *pb.PostID) (*pb.Like
 	row = ts.QueryRow(query_views, int64(id.Id))
 
 	if row.Err() != nil {
-		log.Fatal(row.Err().Error())
+		log.Println(row.Err().Error())
 		return nil, row.Err()
 	}
 

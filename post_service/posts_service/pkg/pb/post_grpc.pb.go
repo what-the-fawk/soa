@@ -33,7 +33,7 @@ const (
 type PostServiceClient interface {
 	NewPost(ctx context.Context, in *PostInfo, opts ...grpc.CallOption) (*PostID, error)
 	UpdatePost(ctx context.Context, in *PostInfo, opts ...grpc.CallOption) (*empty.Empty, error)
-	DeletePost(ctx context.Context, in *PostID, opts ...grpc.CallOption) (*empty.Empty, error)
+	DeletePost(ctx context.Context, in *PostIdAuthor, opts ...grpc.CallOption) (*empty.Empty, error)
 	GetPost(ctx context.Context, in *PostID, opts ...grpc.CallOption) (*Post, error)
 	GetPosts(ctx context.Context, in *PaginationInfo, opts ...grpc.CallOption) (*PostList, error)
 }
@@ -66,7 +66,7 @@ func (c *postServiceClient) UpdatePost(ctx context.Context, in *PostInfo, opts .
 	return out, nil
 }
 
-func (c *postServiceClient) DeletePost(ctx context.Context, in *PostID, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *postServiceClient) DeletePost(ctx context.Context, in *PostIdAuthor, opts ...grpc.CallOption) (*empty.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, PostService_DeletePost_FullMethodName, in, out, cOpts...)
@@ -102,7 +102,7 @@ func (c *postServiceClient) GetPosts(ctx context.Context, in *PaginationInfo, op
 type PostServiceServer interface {
 	NewPost(context.Context, *PostInfo) (*PostID, error)
 	UpdatePost(context.Context, *PostInfo) (*empty.Empty, error)
-	DeletePost(context.Context, *PostID) (*empty.Empty, error)
+	DeletePost(context.Context, *PostIdAuthor) (*empty.Empty, error)
 	GetPost(context.Context, *PostID) (*Post, error)
 	GetPosts(context.Context, *PaginationInfo) (*PostList, error)
 	mustEmbedUnimplementedPostServiceServer()
@@ -118,7 +118,7 @@ func (UnimplementedPostServiceServer) NewPost(context.Context, *PostInfo) (*Post
 func (UnimplementedPostServiceServer) UpdatePost(context.Context, *PostInfo) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePost not implemented")
 }
-func (UnimplementedPostServiceServer) DeletePost(context.Context, *PostID) (*empty.Empty, error) {
+func (UnimplementedPostServiceServer) DeletePost(context.Context, *PostIdAuthor) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePost not implemented")
 }
 func (UnimplementedPostServiceServer) GetPost(context.Context, *PostID) (*Post, error) {
@@ -177,7 +177,7 @@ func _PostService_UpdatePost_Handler(srv interface{}, ctx context.Context, dec f
 }
 
 func _PostService_DeletePost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PostID)
+	in := new(PostIdAuthor)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func _PostService_DeletePost_Handler(srv interface{}, ctx context.Context, dec f
 		FullMethod: PostService_DeletePost_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PostServiceServer).DeletePost(ctx, req.(*PostID))
+		return srv.(PostServiceServer).DeletePost(ctx, req.(*PostIdAuthor))
 	}
 	return interceptor(ctx, in, info, handler)
 }
