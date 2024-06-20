@@ -70,7 +70,7 @@ func NewPostService() *PostService {
 		"author TEXT NOT NULL, " +
 		"date_of_creation VARCHAR (40) NOT NULL, " +
 		"content TEXT NOT NULL, " +
-		"comment_section_id NUMERIC NOT NULL" +
+		"comment_section_id NUMERIC UNIQUE NOT NULL" +
 		")"
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)

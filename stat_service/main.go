@@ -47,7 +47,7 @@ func main() {
 
 	for cond { // nolint:all
 
-		ev := serv.Consumer_views.Poll(1000)
+		ev := serv.Consumer_views.Poll(10)
 
 		switch e := ev.(type) {
 
@@ -62,10 +62,26 @@ func main() {
 			ts, err := serv.Click.Begin()
 
 			if err != nil {
-				log.Fatal(err.Error())
+				log.Println(err.Error())
+				ts.Rollback()
+				continue
 			}
 
-			_, err = ts.Exec("INSERT INTO views (user, post_id) VALUES (?, ?)", data.Author, data.PostId)
+			query_doubler_check := "SELECT * FROM views WHERE user = ? AND post_id = ?"
+
+			row := ts.QueryRow(query_doubler_check, data.User, data.PostId)
+
+			var usr string
+			var id uint64
+			err = row.Scan(&usr, &id)
+
+			if err == nil {
+				log.Println("Duplicate view from ", data.User, "on post_id ", data.PostId, "with author ", data.Author)
+				ts.Rollback()
+				continue
+			}
+			log.Println(err.Error())
+			_, err = ts.Exec("INSERT INTO views (user, post_id) VALUES (?, ?)", data.User, data.PostId)
 
 			if err != nil {
 				log.Println("Failed to write view")
@@ -82,7 +98,7 @@ func main() {
 		default:
 		}
 
-		ev = serv.Consumer_likes.Poll(1000)
+		ev = serv.Consumer_likes.Poll(10)
 
 		switch e := ev.(type) {
 
@@ -98,13 +114,41 @@ func main() {
 
 			if err != nil {
 				log.Fatal(err.Error())
+				ts.Rollback()
+				continue
 			}
 
-			_, err = ts.Exec("INSERT INTO likes (user, post_id, author) VALUES (?, ?, ?)", data.Author, data.PostId, data.Author)
+			query_doubler_check := "SELECT * FROM likes WHERE user = ? AND post_id = ?"
+
+			row := ts.QueryRow(query_doubler_check, data.User, data.PostId)
+			var usr string
+			var id uint64
+			var auth string
+			err = row.Scan(&usr, &id, &auth)
+
+			if err == nil {
+				log.Println("Duplicate like from ", data.User, "on post_id ", data.PostId, "with author ", data.Author)
+				log.Println("Removing like")
+
+				_, err = ts.Exec("ALTER TABLE likes DELETE WHERE user = ? AND post_id = ?", data.User, data.PostId)
+
+				if err != nil {
+					log.Println("Failed to remove like")
+					ts.Rollback()
+					continue
+				}
+
+				ts.Commit()
+				continue
+			}
+
+			_, err = ts.Exec("INSERT INTO likes (user, post_id, author) VALUES (?, ?, ?)", data.User, data.PostId, data.Author)
 
 			if err != nil {
 				log.Println("Failed to write view")
 				log.Println(err.Error())
+				ts.Rollback()
+				continue
 			}
 
 			ts.Commit()

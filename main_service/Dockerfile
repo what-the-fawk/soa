@@ -11,6 +11,8 @@ RUN openssl genrsa -des3 -out /app/main_service/encrypted.pem -passout pass:"som
 RUN openssl rsa -in /app/main_service/encrypted.pem  -outform PEM -pubout -out /app/main_service/signature.pub -passin pass:"someshit"
 RUN openssl rsa -in /app/main_service/encrypted.pem -out /app/main_service/signature.pem -outform PEM -passin pass:"someshit"
 
+RUN go mod download -x
+
 RUN go build main.go
 
 ENTRYPOINT ./main
