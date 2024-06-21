@@ -15,7 +15,7 @@ jobs:
         go-version: ^1.22
 
     - name: Test main_service
-      run: go test main_service/test
+      run: cd main_service/test/ && go test
 
     - name: Test post_service
       run: go test post_service/test/post_service_test.go
