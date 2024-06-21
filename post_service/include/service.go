@@ -16,8 +16,8 @@ import (
 
 type PostService struct {
 	pb.UnimplementedPostServiceServer
-	db      *sql.DB
-	counter uint64 // initially zero
+	Db      *sql.DB
+	Counter uint64 // initially zero
 }
 
 const dbname = "postgres"
@@ -83,8 +83,8 @@ func NewPostService() *PostService {
 	}
 
 	return &PostService{
-		db:      db,
-		counter: 0,
+		Db:      db,
+		Counter: 0,
 	}
 }
 
@@ -93,9 +93,9 @@ func (s *PostService) NewPost(ctx context.Context, post *pb.PostInfo) (*pb.PostI
 	const query = "INSERT INTO posts (post_id, author, date_of_creation, content, comment_section_id)" +
 		" VALUES ($1, $2, $3, $4, $5) "
 
-	newId := atomic.AddUint64(&s.counter, 1)
+	newId := atomic.AddUint64(&s.Counter, 1)
 
-	_, err := s.db.Exec(query, newId, post.Author, post.DateOfCreation, post.Content, post.CommentSectionId)
+	_, err := s.Db.Exec(query, newId, post.Author, post.DateOfCreation, post.Content, post.CommentSectionId)
 
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (s *PostService) UpdatePost(ctx context.Context, info *pb.PostInfo) (*empty
 
 	const query = "UPDATE Posts SET content=$1 WHERE author=$2 AND date_of_creation=$3 AND comment_section_id=$4 "
 
-	_, err := s.db.Exec(query, info.Content, info.Author, info.DateOfCreation, info.CommentSectionId)
+	_, err := s.Db.Exec(query, info.Content, info.Author, info.DateOfCreation, info.CommentSectionId)
 
 	return &empty.Empty{}, err
 }
@@ -118,7 +118,7 @@ func (s *PostService) DeletePost(ctx context.Context, id *pb.PostIdAuthor) (*emp
 
 	const query = "DELETE FROM Posts WHERE post_id=$1 AND author=$2 "
 
-	_, err := s.db.Exec(query, id.Id, id.Author)
+	_, err := s.Db.Exec(query, id.Id, id.Author)
 
 	return &empty.Empty{}, err
 }
@@ -127,7 +127,7 @@ func (s *PostService) GetPost(ctx context.Context, id *pb.PostID) (*pb.Post, err
 
 	const query = "SELECT post_id, author, date_of_creation, content, comment_section_id from Posts WHERE post_id=$1"
 
-	row := s.db.QueryRow(query, id.Id)
+	row := s.Db.QueryRow(query, id.Id)
 
 	post := &pb.Post{}
 
@@ -144,7 +144,7 @@ func (s *PostService) GetPosts(ctx context.Context, info *pb.PaginationInfo) (*p
 
 	const query = "SELECT post_id, content, author FROM Posts LIMIT $1 OFFSET $2"
 
-	rows, err := s.db.Query(query, info.BatchSize, info.PageNumber*uint64(info.BatchSize))
+	rows, err := s.Db.Query(query, info.BatchSize, info.PageNumber*uint64(info.BatchSize))
 
 	defer rows.Close()
 

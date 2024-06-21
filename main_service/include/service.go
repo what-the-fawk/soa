@@ -27,9 +27,9 @@ import (
 )
 
 type MainServiceHandler struct {
-	db         *sql.DB
-	jwtPrivate *rsa.PrivateKey
-	jwtPublic  *rsa.PublicKey
+	Db         *sql.DB
+	JwtPrivate *rsa.PrivateKey
+	JwtPublic  *rsa.PublicKey
 	client     pb.PostServiceClient
 	stats      rpc_stats.StatServiceClient
 	producer   *kafka.Producer
@@ -165,9 +165,9 @@ func CreateMainServiceHandler() *MainServiceHandler {
 	}
 
 	return &MainServiceHandler{
-		db:         db,
-		jwtPublic:  pub,
-		jwtPrivate: pri,
+		Db:         db,
+		JwtPublic:  pub,
+		JwtPrivate: pri,
 		client:     grpcClient,
 		stats:      grpcPosts,
 		producer:   p,
@@ -176,7 +176,7 @@ func CreateMainServiceHandler() *MainServiceHandler {
 }
 
 func (s *MainServiceHandler) Close() {
-	s.db.Close()
+	s.Db.Close()
 }
 
 func (s *MainServiceHandler) Register(w http.ResponseWriter, req *http.Request) {
@@ -205,7 +205,7 @@ func (s *MainServiceHandler) Register(w http.ResponseWriter, req *http.Request) 
 	hasher := sha256.New()
 	passwordHash := hex.EncodeToString(hasher.Sum([]byte(info.Password)))
 
-	_, err = s.db.ExecContext(ctx, query, info.Login, passwordHash)
+	_, err = s.Db.ExecContext(ctx, query, info.Login, passwordHash)
 
 	if err != nil {
 		log.Println(err.Error())
@@ -234,7 +234,7 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, query, info.Login)
+	row := s.Db.QueryRowContext(ctx, query, info.Login)
 
 	userQueryInfo := common.AuthInfo{}
 
@@ -263,7 +263,12 @@ func (s *MainServiceHandler) Auth(w http.ResponseWriter, req *http.Request) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
-	tokenStr, err := token.SignedString(s.jwtPrivate)
+	tokenStr, err := token.SignedString(s.JwtPrivate)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:  "jwt",
@@ -285,7 +290,7 @@ func (s *MainServiceHandler) CheckToken(req *http.Request) (string, error) {
 	tokenStr := cookie.Value
 
 	token, err := jwt.ParseWithClaims(tokenStr, jwt.MapClaims{}, func(token *jwt.Token) (any, error) {
-		return s.jwtPublic, nil
+		return s.JwtPublic, nil
 	})
 
 	if err != nil {
@@ -343,7 +348,7 @@ func (s *MainServiceHandler) Update(w http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	_, err = s.db.ExecContext(ctx, query, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber, user)
+	_, err = s.Db.ExecContext(ctx, query, info.FirstName, info.SecondName, info.DateOfBirth, info.Email, info.PhoneNumber, user)
 
 	if err != nil {
 		log.Println(err.Error())

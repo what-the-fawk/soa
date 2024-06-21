@@ -19,6 +19,8 @@ services:
     depends_on:
       - post_db
       - broker
+    ports:
+      - 6666:6666
     env_file:
       - .env
 

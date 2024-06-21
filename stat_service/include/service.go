@@ -74,7 +74,7 @@ func CreateNewStatService() *StatServiceHandler {
 
 	// create views
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS views (user String, post_id UInt64) ENGINE = MergeTree() ORDER BY post_id") // TODO: change engines
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS views (user String, post_id UInt64) ENGINE = MergeTree() ORDER BY post_id")
 
 	if err != nil {
 		log.Println("Failed to create views")
@@ -242,6 +242,8 @@ func (s *StatServiceHandler) Total(ctx context.Context, id *pb.PostID) (*pb.Like
 		log.Println(err.Error())
 		return nil, err
 	}
+
+	ts.Commit()
 
 	return ans, nil
 }
