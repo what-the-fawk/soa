@@ -3,11 +3,12 @@ package common
 import (
 	"crypto/rsa"
 	"encoding/json"
-	"github.com/golang-jwt/jwt/v5"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func GetPostgresParams() (string, int, string, string, string, error) {
@@ -60,7 +61,7 @@ func GetRSAKeys() (*rsa.PublicKey, *rsa.PrivateKey, error) {
 
 }
 
-func GetJsonStruct[T UserInfo | NewUserInfo | AuthInfo | PostInfo | PostId | PaginationInfo](req *http.Request) (*T, int, error) {
+func GetJsonStruct[T UserInfo | NewUserInfo | AuthInfo | PostInfo | PostId | PaginationInfo | ReactionInfo | PostIsLike](req *http.Request) (*T, int, error) {
 
 	body := make([]byte, req.ContentLength)
 	read, err := req.Body.Read(body)

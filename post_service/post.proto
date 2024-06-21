@@ -10,16 +10,21 @@ message PostID {
   uint64 id = 1;
 }
 
+message PostIdAuthor {
+  uint64 id = 1;
+  string author = 2;
+}
+
 message Post {
   uint64 id = 1;
-  uint64 author_id = 2;
+  string author = 2;
   string date_of_creation = 3;
   string content = 4;
   uint64 comment_section_id = 5;
 }
 
 message PostInfo {
-  uint64 author_id = 1;
+  string author = 1;
   string date_of_creation = 2;
   string content = 3;
   uint64 comment_section_id = 4;
@@ -37,7 +42,7 @@ message PostList {
 service PostService  {
   rpc NewPost(PostInfo) returns (PostID) {};
   rpc UpdatePost(PostInfo) returns (google.protobuf.Empty) {};
-  rpc DeletePost(PostID) returns (google.protobuf.Empty) {};
+  rpc DeletePost(PostIdAuthor) returns (google.protobuf.Empty) {};
   rpc GetPost(PostID) returns (Post) {};
 
   rpc GetPosts(PaginationInfo) returns (PostList) {};

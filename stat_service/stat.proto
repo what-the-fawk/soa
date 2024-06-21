@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package stat;
+
+option go_package = "stats_service/pkg/pb";
+
+import "google/protobuf/empty.proto";
+
+
+message PostID {
+  uint64 id = 1;
+}
+
+message LikesViews {
+  uint64 id = 1;
+  uint64 likes = 2;
+  uint64 views = 3;
+}
+
+message PostInfo {
+  uint64 id = 1;
+  string author_login = 2;
+  uint64 activity_num = 3;
+}
+
+message Posts {
+    repeated PostInfo ids = 1;
+}
+
+
+message TopInfo {
+    uint64 is_like = 1;
+}
+
+message UserLike {
+  string login = 1;
+  uint64 likes = 2;
+}
+
+message Users {
+    repeated UserLike users = 1;
+}
+
+service StatService {
+    rpc Total(PostID) returns (LikesViews) {};
+    rpc Top(TopInfo) returns (Posts) {};
+    rpc Rating(google.protobuf.Empty) returns (Users) {};
+}
+

@@ -2,7 +2,7 @@ FROM golang:latest
 
 COPY ./ /app
 
-WORKDIR /app/post_service
+WORKDIR /app/stat_service
 RUN go mod download -x
 RUN go build main.go
 
