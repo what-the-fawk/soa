@@ -21,4 +21,4 @@ jobs:
       run: go test post_service/test/post_service_test.go
 
     - name: Test stat_service
-      run: go test stat_service/test
+      run: cd stat_service/test && go test
